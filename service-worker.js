@@ -1,5 +1,10 @@
-const CACHE_NAME = "finance-pwa-v1";
-const urlsToCache = ["index.html", "manifest.json"];
+const CACHE_NAME = "finance-pwa-v2";
+const urlsToCache = [
+  "index.html",
+  "manifest.json",
+  "icon-192.png",
+  "icon-512.png"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
