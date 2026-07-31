@@ -52,42 +52,8 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            overscroll-behavior-y: contain;
+            overscroll-behavior-y: auto;
             transition: background-color 0.3s, color 0.3s;
-        }
-
-        .ptr-indicator {
-            position: fixed;
-            top: -50px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 36px;
-            height: 36px;
-            background: var(--card-bg);
-            border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: top 0.2s ease, transform 0.2s ease;
-            z-index: 2000;
-        }
-
-        .ptr-indicator svg {
-            width: 20px;
-            height: 20px;
-            fill: var(--secondary-text);
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-
-        .ptr-indicator.loading svg {
-            display: block;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
 
         .container {
@@ -201,6 +167,7 @@
             margin-bottom: 12px;
             color: #0bb622;
         }
+
         .section-title-expenses {
             font-size: 22px;
             font-weight: 600;
@@ -412,13 +379,8 @@
 </head>
 <body>
 
-    <div class="ptr-indicator" id="ptrIndicator">
-        <svg viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-    </div>
-
     <div class="container">
         <div class="top-bar">
-            <!-- Выпадающий список счетов -->
             <div class="account-selector" id="accountSelector">
                 <div class="account-current" id="currentAccountLabel" onclick="toggleAccountMenu()">
                     <span id="accountNameText">Общее</span>
@@ -431,7 +393,6 @@
                 </div>
             </div>
 
-            <!-- Идеально ровная иконка настроек (шестеренка) -->
             <button class="settings-btn" id="openSettings">
                 <svg viewBox="0 0 24 24">
                     <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
@@ -487,7 +448,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно настроек -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal-window">
             <button class="close-modal" id="closeSettings">
@@ -542,7 +502,7 @@
         let settings = JSON.parse(localStorage.getItem('finance_settings')) || { 
             vibrate: true, 
             theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
-            defaultAccount: 'cash' // По умолчанию теперь наличные, раз вы так хотели
+            defaultAccount: 'cash'
         };
 
         if (!settings.defaultAccount) settings.defaultAccount = 'cash';
@@ -551,7 +511,6 @@
         let currentChartPeriod = 'week';
         let chartInstance = null;
 
-        // Инициализация настроек в UI
         if (settings.theme === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
             document.getElementById('themeToggle').checked = true;
@@ -566,7 +525,7 @@
         document.getElementById('defaultAccountSelect').value = settings.defaultAccount;
 
         function triggerVibration() {
-            if (settings.vibrate && 'vibrate' in navigator) navigator.vibrate(30);
+            if (settings.vibrate && 'vibrate' in navigator) navigator.vibrate(50); // Увеличена сила вибрации
         }
         
         function toggleVibration(checkbox) {
@@ -617,7 +576,7 @@
             document.getElementById('accountNameText').innerText = title;
             document.getElementById('accountDropdown').classList.remove('active');
             
-            updateDisplay();
+            updateDisplay(true); // Анимация при смене счета
             updateChart();
         }
 
@@ -632,17 +591,22 @@
             return 0;
         }
 
-        function updateDisplay() {
-            document.getElementById('balanceDisplay').innerText = getCurrentBalance().toLocaleString('ru-RU') + ' ₽';
+        function updateDisplay(animate = false) {
+            const targetVal = getCurrentBalance();
+            if (animate) {
+                animateBalance(0, targetVal);
+            } else {
+                document.getElementById('balanceDisplay').innerText = targetVal.toLocaleString('ru-RU') + ' ₽';
+            }
         }
 
-        function animateBalance(startValue, endValue, duration = 300) {
+        function animateBalance(startValue, endValue, duration = 400) {
             const balanceEl = document.getElementById('balanceDisplay');
             let startTimestamp = null;
             const isIncome = endValue >= startValue;
 
             balanceEl.style.transition = 'none';
-            balanceEl.style.color = isIncome ? '#34C759' : '#FF3B30'; 
+            balanceEl.style.color = isIncome ? '#0bb622' : '#dd1e14'; 
             
             const step = (timestamp) => {
                 if (!startTimestamp) startTimestamp = timestamp;
@@ -681,7 +645,6 @@
             let val = parseFloat(input.value);
             if (isNaN(val) || val <= 0) return;
 
-            // Если выбрано «Общее», транзакция падает на счет, указанный в настройках (по умолчанию Наличные)
             let targetAcc = currentAccount;
             if (targetAcc === 'total') targetAcc = settings.defaultAccount; 
 
@@ -884,7 +847,7 @@
                         if (parsed.cash && parsed.card) {
                             state = parsed;
                             localStorage.setItem('finance_state', JSON.stringify(state));
-                            updateDisplay();
+                            updateDisplay(true);
                             updateChart();
                             modal.classList.remove('active');
                             alert('Данные загружены!');
@@ -894,7 +857,7 @@
                                 card: { balance: 0, history: [] }
                             };
                             localStorage.setItem('finance_state', JSON.stringify(state));
-                            updateDisplay();
+                            updateDisplay(true);
                             updateChart();
                             modal.classList.remove('active');
                             alert('Данные загружены!');
@@ -912,31 +875,14 @@
                     card: { balance: 0, history: [] }
                 };
                 localStorage.setItem('finance_state', JSON.stringify(state));
-                updateDisplay();
+                updateDisplay(true);
                 updateChart();
                 modal.classList.remove('active');
             }
         }
 
-        let touchStartY = 0;
-        const ptrIndicator = document.getElementById('ptrIndicator');
-        window.addEventListener('touchstart', e => { if (window.scrollY === 0) touchStartY = e.touches[0].clientY; }, { passive: true });
-        window.addEventListener('touchmove', e => {
-            if (!touchStartY) return;
-            const diff = e.touches[0].clientY - touchStartY;
-            if (diff > 0 && diff < 150 && window.scrollY === 0) ptrIndicator.style.top = `${diff / 2 - 30}px`;
-        }, { passive: true });
-        window.addEventListener('touchend', e => {
-            if (!touchStartY) return;
-            const diff = e.changedTouches[0].clientY - touchStartY;
-            if (diff > 80 && window.scrollY === 0) {
-                ptrIndicator.classList.add('loading'); ptrIndicator.style.top = '20px';
-                setTimeout(() => window.location.reload(), 600);
-            } else { ptrIndicator.style.top = '-50px'; }
-            touchStartY = 0;
-        }, { passive: true });
-
-        updateDisplay();
+        // Запуск при старте с красивой анимацией от 0 до реального баланса
+        updateDisplay(true);
         updateChart(); 
     </script>
 </body>
