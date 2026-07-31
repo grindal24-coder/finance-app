@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Учет финансов</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff" id="themeMeta">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #fafafc;
+            --text-color: #111;
+            --card-bg: #fff;
+            --border-color: #dcdce0;
+            --input-bg: #fff;
+            --quick-bg: #fff;
+            --quick-hover: #f0f0f5;
+            --modal-bg: #fff;
+            --modal-btn-bg: #f7f7f9;
+            --modal-btn-border: #e0e0e4;
+            --secondary-text: #555;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121214;
+            --text-color: #f0f0f5;
+            --card-bg: #1e1e24;
+            --border-color: #2e2e38;
+            --input-bg: #16161a;
+            --quick-bg: #1e1e24;
+            --quick-hover: #2a2a35;
+            --modal-bg: #1e1e24;
+            --modal-btn-bg: #2a2a35;
+            --modal-btn-border: #3a3a45;
+            --secondary-text: #aaa;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overscroll-behavior-y: contain;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .ptr-indicator {
+            position: fixed;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 36px;
+            background: var(--card-bg);
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: top 0.2s ease, transform 0.2s ease;
+            z-index: 2000;
+        }
+
+        .ptr-indicator svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--secondary-text);
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        .ptr-indicator.loading svg {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            position: relative;
+            padding-bottom: 40px;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-top: 10px;
+            margin-bottom: 25px;
+        }
+
+        .account-selector {
+            position: relative;
+        }
+
+        .account-current {
+            font-size: 15px;
+            font-weight: 600;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .account-current svg {
+            width: 12px; height: 12px; fill: var(--text-color);
+        }
+
+        .account-dropdown {
+            position: absolute;
+            top: 45px; left: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            display: none;
+            flex-direction: column;
+            width: 160px;
+            z-index: 100;
+            overflow: hidden;
+        }
+
+        .account-dropdown.active {
+            display: flex;
+        }
+
+        .account-option {
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--card-bg);
+            text-align: left;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .account-option:last-child { border-bottom: none; }
+        .account-option:active { background: var(--quick-hover); }
+
+        .settings-btn {
+            width: 44px;
+            height: 44px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.1s;
+        }
+
+        .settings-btn:active {
+            background: var(--quick-hover);
+        }
+
+        .settings-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-color);
+        }
+
+        .balance-section {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .balance-amount {
+            font-size: 48px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            transition: color 0.5s ease, transform 0.1s;
+        }
+
+        .section-title-income {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #0bb622;
+        }
+        .section-title-expenses {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #dd1e14;
+        }
+
+        .finance-card {
+            margin-bottom: 35px;
+        }
+
+        .input-box {
+            width: 100%;
+            height: 52px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0 16px;
+            font-size: 18px;
+            background: var(--input-bg);
+            color: var(--text-color);
+            outline: none;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .input-box::placeholder {
+            color: #999;
+        }
+
+        .input-box:focus {
+            border-color: #666;
+        }
+
+        .quick-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .quick-btn {
+            background: var(--quick-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            height: 46px;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .quick-btn:active {
+            background: var(--quick-hover);
+            transform: scale(0.96);
+        }
+
+        .clear-btn {
+            color: #FF3B30;
+            font-weight: 600;
+            background: var(--card-bg);
+            border-color: #ffcccc;
+        }
+
+        .action-btn {
+            width: 100%;
+            height: 50px;
+            background: var(--quick-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 17px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .action-btn:active {
+            background: var(--quick-hover);
+            transform: scale(0.98);
+        }
+
+        .chart-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 10px;
+        }
+
+        .chart-controls {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .chart-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-color);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chart-btn.active {
+            background: var(--text-color);
+            color: var(--bg-color);
+            border-color: var(--text-color);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s ease;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            opacity: 1; pointer-events: auto;
+        }
+
+        .modal-window {
+            background: var(--modal-bg);
+            width: 90%; max-width: 340px;
+            border-radius: 16px; padding: 24px;
+            position: relative;
+            transform: scale(0.9) translateY(10px);
+            transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-overlay.active .modal-window {
+            transform: scale(1) translateY(0);
+        }
+
+        .close-modal {
+            position: absolute; top: 16px; right: 16px;
+            width: 32px; height: 32px;
+            background: transparent; border: none; cursor: pointer;
+        }
+
+        .close-modal svg {
+            width: 18px; height: 18px; fill: var(--secondary-text);
+        }
+
+        .modal-title {
+            font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--text-color);
+        }
+
+        .modal-btn {
+            width: 100%; height: 48px;
+            background: var(--modal-btn-bg); border: 1px solid var(--modal-btn-border);
+            border-radius: 10px; font-size: 16px; font-weight: 500;
+            cursor: pointer; margin-bottom: 12px; color: var(--text-color);
+        }
+
+        .modal-btn.danger {
+            background: #fff5f5;
+            border-color: #ffcccc;
+            color: #FF3B30;
+        }
+
+        .setting-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px; font-size: 15px; font-weight: 500; color: var(--text-color);
+        }
+
+        .setting-select {
+            background: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .switch {
+            position: relative; display: inline-block; width: 50px; height: 28px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .2s; border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px;
+            background-color: white; transition: .2s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--text-color); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        #importFile { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="ptr-indicator" id="ptrIndicator">
+        <svg viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
+    </div>
+
+    <div class="container">
+        <div class="top-bar">
+            <!-- Выпадающий список счетов -->
+            <div class="account-selector" id="accountSelector">
+                <div class="account-current" id="currentAccountLabel" onclick="toggleAccountMenu()">
+                    <span id="accountNameText">Общее</span>
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                </div>
+                <div class="account-dropdown" id="accountDropdown">
+                    <button class="account-option" onclick="selectAccount('total')">Общее</button>
+                    <button class="account-option" onclick="selectAccount('cash')">Наличные</button>
+                    <button class="account-option" onclick="selectAccount('card')">Карта</button>
+                </div>
+            </div>
+
+            <!-- Идеально ровная иконка настроек (шестеренка) -->
+            <button class="settings-btn" id="openSettings">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="balance-section">
+            <div class="balance-amount" id="balanceDisplay">0 ₽</div>
+        </div>
+
+        <div class="finance-card">
+            <div class="section-title-income">Доходы</div>
+            <input type="number" id="incomeInput" class="input-box" placeholder="Введите сумму" inputmode="numeric">
+            <div class="quick-buttons">
+                <button class="quick-btn clear-btn" onclick="clearInput('income')">0</button>
+                <button class="quick-btn" onclick="addQuick('income', 50)">50</button>
+                <button class="quick-btn" onclick="addQuick('income', 100)">100</button>
+                <button class="quick-btn" onclick="addQuick('income', 200)">200</button>
+                <button class="quick-btn" onclick="addQuick('income', 500)">500</button>
+                <button class="quick-btn" onclick="addQuick('income', 1000)">1000</button>
+                <button class="quick-btn" onclick="addQuick('income', 2000)">2000</button>
+                <button class="quick-btn" onclick="addQuick('income', 5000)">5000</button>
+            </div>
+            <button class="action-btn" onclick="processTransaction('income')">Готово</button>
+        </div>
+
+        <div class="finance-card">
+            <div class="section-title-expenses">Расходы</div>
+            <input type="number" id="expenseInput" class="input-box" placeholder="Введите сумму" inputmode="numeric">
+            <div class="quick-buttons">
+                <button class="quick-btn clear-btn" onclick="clearInput('expense')">0</button>
+                <button class="quick-btn" onclick="addQuick('expense', 50)">50</button>
+                <button class="quick-btn" onclick="addQuick('expense', 100)">100</button>
+                <button class="quick-btn" onclick="addQuick('expense', 200)">200</button>
+                <button class="quick-btn" onclick="addQuick('expense', 500)">500</button>
+                <button class="quick-btn" onclick="addQuick('expense', 1000)">1000</button>
+                <button class="quick-btn" onclick="addQuick('expense', 2000)">2000</button>
+                <button class="quick-btn" onclick="addQuick('expense', 5000)">5000</button>
+            </div>
+            <button class="action-btn" onclick="processTransaction('expense')">Готово</button>
+        </div>
+
+        <div class="chart-section">
+            <div class="chart-controls">
+                <button class="chart-btn active" onclick="setChartPeriod('week', this)">Неделя</button>
+                <button class="chart-btn" onclick="setChartPeriod('month', this)">Месяц</button>
+                <button class="chart-btn" onclick="setChartPeriod('year', this)">Год</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="financeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно настроек -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-window">
+            <button class="close-modal" id="closeSettings">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <div class="modal-title">Настройки</div>
+            
+            <div class="setting-row">
+                <span>Счет по умолчанию (для «Общего»)</span>
+                <select id="defaultAccountSelect" class="setting-select" onchange="changeDefaultAccount(this)">
+                    <option value="cash">Наличные</option>
+                    <option value="card">Карта</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <span>Темная тема</span>
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle" onchange="toggleTheme(this)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-row">
+                <span>Виброотклик</span>
+                <label class="switch">
+                    <input type="checkbox" id="vibrateToggle" onchange="toggleVibration(this)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button class="modal-btn" onclick="saveBackup()">Сохранить данные</button>
+            <button class="modal-btn" onclick="triggerLoadBackup()">Загрузить данные</button>
+            <button class="modal-btn danger" onclick="resetData()">Сбросить все данные</button>
+            <input type="file" id="importFile" accept=".json" onchange="loadBackup(event)">
+        </div>
+    </div>
+
+    <script>
+        let state = JSON.parse(localStorage.getItem('finance_state')) || {
+            cash: { balance: 0, history: [] },
+            card: { balance: 0, history: [] }
+        };
+        
+        if (typeof state.balance === 'number') {
+            state = {
+                cash: { balance: state.balance, history: state.history || [] },
+                card: { balance: 0, history: [] }
+            };
+        }
+        if (!state.cash) state.cash = { balance: 0, history: [] };
+        if (!state.card) state.card = { balance: 0, history: [] };
+
+        let settings = JSON.parse(localStorage.getItem('finance_settings')) || { 
+            vibrate: true, 
+            theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+            defaultAccount: 'cash' // По умолчанию теперь наличные, раз вы так хотели
+        };
+
+        if (!settings.defaultAccount) settings.defaultAccount = 'cash';
+
+        let currentAccount = 'total'; 
+        let currentChartPeriod = 'week';
+        let chartInstance = null;
+
+        // Инициализация настроек в UI
+        if (settings.theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('themeToggle').checked = true;
+            document.getElementById('themeMeta').setAttribute('content', '#121214');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.getElementById('themeToggle').checked = false;
+            document.getElementById('themeMeta').setAttribute('content', '#ffffff');
+        }
+
+        document.getElementById('vibrateToggle').checked = settings.vibrate;
+        document.getElementById('defaultAccountSelect').value = settings.defaultAccount;
+
+        function triggerVibration() {
+            if (settings.vibrate && 'vibrate' in navigator) navigator.vibrate(30);
+        }
+        
+        function toggleVibration(checkbox) {
+            settings.vibrate = checkbox.checked;
+            localStorage.setItem('finance_settings', JSON.stringify(settings));
+            triggerVibration();
+        }
+
+        function changeDefaultAccount(select) {
+            triggerVibration();
+            settings.defaultAccount = select.value;
+            localStorage.setItem('finance_settings', JSON.stringify(settings));
+        }
+
+        function toggleTheme(checkbox) {
+            triggerVibration();
+            if (checkbox.checked) {
+                settings.theme = 'dark';
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('themeMeta').setAttribute('content', '#121214');
+            } else {
+                settings.theme = 'light';
+                document.documentElement.setAttribute('data-theme', 'light');
+                document.getElementById('themeMeta').setAttribute('content', '#ffffff');
+            }
+            localStorage.setItem('finance_settings', JSON.stringify(settings));
+            updateChart();
+        }
+
+        function toggleAccountMenu() {
+            triggerVibration();
+            document.getElementById('accountDropdown').classList.toggle('active');
+        }
+
+        window.addEventListener('click', (e) => {
+            if (!document.getElementById('accountSelector').contains(e.target)) {
+                document.getElementById('accountDropdown').classList.remove('active');
+            }
+        });
+
+        function selectAccount(acc) {
+            triggerVibration();
+            currentAccount = acc;
+            let title = 'Общее';
+            if (acc === 'cash') title = 'Наличные';
+            if (acc === 'card') title = 'Карта';
+            
+            document.getElementById('accountNameText').innerText = title;
+            document.getElementById('accountDropdown').classList.remove('active');
+            
+            updateDisplay();
+            updateChart();
+        }
+
+        function getTotalBalance() {
+            return state.cash.balance + state.card.balance;
+        }
+
+        function getCurrentBalance() {
+            if (currentAccount === 'total') return getTotalBalance();
+            if (currentAccount === 'cash') return state.cash.balance;
+            if (currentAccount === 'card') return state.card.balance;
+            return 0;
+        }
+
+        function updateDisplay() {
+            document.getElementById('balanceDisplay').innerText = getCurrentBalance().toLocaleString('ru-RU') + ' ₽';
+        }
+
+        function animateBalance(startValue, endValue, duration = 300) {
+            const balanceEl = document.getElementById('balanceDisplay');
+            let startTimestamp = null;
+            const isIncome = endValue >= startValue;
+
+            balanceEl.style.transition = 'none';
+            balanceEl.style.color = isIncome ? '#34C759' : '#FF3B30'; 
+            
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const currentVal = Math.floor(startValue + (endValue - startValue) * easeOut);
+                
+                balanceEl.innerText = currentVal.toLocaleString('ru-RU') + ' ₽';
+                
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                } else {
+                    balanceEl.innerText = endValue.toLocaleString('ru-RU') + ' ₽';
+                    balanceEl.style.transition = 'color 0.5s ease';
+                    balanceEl.style.color = 'var(--text-color)';
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        function clearInput(type) {
+            triggerVibration();
+            document.getElementById(type === 'income' ? 'incomeInput' : 'expenseInput').value = '';
+        }
+
+        function addQuick(type, amount) {
+            triggerVibration();
+            const input = document.getElementById(type === 'income' ? 'incomeInput' : 'expenseInput');
+            input.value = (parseFloat(input.value) || 0) + amount;
+        }
+
+        function processTransaction(type) {
+            triggerVibration();
+            const input = document.getElementById(type === 'income' ? 'incomeInput' : 'expenseInput');
+            let val = parseFloat(input.value);
+            if (isNaN(val) || val <= 0) return;
+
+            // Если выбрано «Общее», транзакция падает на счет, указанный в настройках (по умолчанию Наличные)
+            let targetAcc = currentAccount;
+            if (targetAcc === 'total') targetAcc = settings.defaultAccount; 
+
+            const oldBalance = getCurrentBalance();
+
+            if (type === 'income') {
+                state[targetAcc].balance += val;
+            } else {
+                state[targetAcc].balance -= val;
+            }
+
+            state[targetAcc].history.push({
+                type: type,
+                amount: val,
+                date: new Date().toISOString()
+            });
+
+            localStorage.setItem('finance_state', JSON.stringify(state));
+            input.value = '';
+            
+            const newBalance = getCurrentBalance();
+            animateBalance(oldBalance, newBalance);
+            updateChart();
+        }
+
+        function setChartPeriod(period, btnElement) {
+            currentChartPeriod = period;
+            document.querySelectorAll('.chart-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            updateChart();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('financeChart').getContext('2d');
+            const now = new Date();
+            
+            let labels = [];
+            let balanceData = [];
+            
+            let combinedHistory = [];
+            if (currentAccount === 'total') {
+                combinedHistory = [...state.cash.history, ...state.card.history];
+            } else {
+                combinedHistory = [...state[currentAccount].history];
+            }
+            
+            let runningBalance = getCurrentBalance(); 
+
+            if (currentChartPeriod === 'week' || currentChartPeriod === 'month') {
+                const days = currentChartPeriod === 'week' ? 7 : 30;
+                let dateStrings = [];
+                
+                for (let i = 0; i < days; i++) {
+                    const d = new Date(now);
+                    d.setDate(now.getDate() - i);
+                    dateStrings.push({
+                        label: `${d.getDate()}.${d.getMonth() + 1}`,
+                        match: d.toISOString().split('T')[0]
+                    });
+                }
+                
+                let dailyNet = {};
+                combinedHistory.forEach(tx => {
+                    const dStr = tx.date.split('T')[0];
+                    if (!dailyNet[dStr]) dailyNet[dStr] = 0;
+                    if (tx.type === 'income') dailyNet[dStr] += tx.amount;
+                    else dailyNet[dStr] -= tx.amount;
+                });
+
+                let tempBalance = runningBalance;
+                for (let i = 0; i < days; i++) {
+                    const ds = dateStrings[i].match;
+                    labels.push(dateStrings[i].label);
+                    balanceData.push(tempBalance);
+                    
+                    let netToday = dailyNet[ds] || 0;
+                    tempBalance = tempBalance - netToday;
+                }
+                
+                labels.reverse();
+                balanceData.reverse();
+
+            } else if (currentChartPeriod === 'year') {
+                const monthNames = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];
+                let dateStrings = [];
+                
+                for (let i = 0; i < 12; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    dateStrings.push({
+                        label: monthNames[d.getMonth()],
+                        match: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                    });
+                }
+
+                let monthlyNet = {};
+                combinedHistory.forEach(tx => {
+                    const mStr = tx.date.substring(0, 7);
+                    if (!monthlyNet[mStr]) monthlyNet[mStr] = 0;
+                    if (tx.type === 'income') monthlyNet[mStr] += tx.amount;
+                    else monthlyNet[mStr] -= tx.amount;
+                });
+
+                let tempBalance = runningBalance;
+                for (let i = 0; i < 12; i++) {
+                    const ms = dateStrings[i].match;
+                    labels.push(dateStrings[i].label);
+                    balanceData.push(tempBalance);
+                    
+                    let netMonth = monthlyNet[ms] || 0;
+                    tempBalance = tempBalance - netMonth;
+                }
+                
+                labels.reverse();
+                balanceData.reverse();
+            }
+
+            if (chartInstance) chartInstance.destroy();
+            
+            const isDark = settings.theme === 'dark';
+            const lineColor = isDark ? '#f0f0f5' : '#222';
+            const fillColor = isDark ? 'rgba(240, 240, 245, 0.05)' : 'rgba(34, 34, 34, 0.05)';
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Баланс',
+                        data: balanceData,
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
+                        borderWidth: 2,
+                        pointBackgroundColor: lineColor,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.3 
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false, 
+                    },
+                    scales: {
+                        x: { 
+                            grid: { display: false }, 
+                            ticks: { font: { size: 10 }, color: isDark ? '#aaa' : '#666' } 
+                        },
+                        y: { display: false } 
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)',
+                            titleColor: isDark ? '#000' : '#fff',
+                            bodyColor: isDark ? '#000' : '#fff',
+                            titleFont: { size: 13, weight: 'normal' },
+                            bodyFont: { size: 15, weight: 'bold' },
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toLocaleString('ru-RU') + ' ₽';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        const modal = document.getElementById('settingsModal');
+        document.getElementById('openSettings').onclick = () => { triggerVibration(); modal.classList.add('active'); };
+        document.getElementById('closeSettings').onclick = () => { triggerVibration(); modal.classList.remove('active'); };
+        modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+
+        function saveBackup() {
+            triggerVibration();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const a = document.createElement('a');
+            a.href = dataStr; a.download = "finance_backup.json";
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+
+        function triggerLoadBackup() {
+            triggerVibration();
+            document.getElementById('importFile').click();
+        }
+
+        function loadBackup(event) {
+            const fileReader = new FileReader();
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0], "UTF-8");
+                fileReader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        if (parsed.cash && parsed.card) {
+                            state = parsed;
+                            localStorage.setItem('finance_state', JSON.stringify(state));
+                            updateDisplay();
+                            updateChart();
+                            modal.classList.remove('active');
+                            alert('Данные загружены!');
+                        } else if (typeof parsed.balance === 'number') {
+                            state = {
+                                cash: { balance: parsed.balance, history: parsed.history || [] },
+                                card: { balance: 0, history: [] }
+                            };
+                            localStorage.setItem('finance_state', JSON.stringify(state));
+                            updateDisplay();
+                            updateChart();
+                            modal.classList.remove('active');
+                            alert('Данные загружены!');
+                        }
+                    } catch (err) { alert('Ошибка файла.'); }
+                };
+            }
+        }
+
+        function resetData() {
+            triggerVibration();
+            if (confirm("Вы уверены, что хотите удалить всю историю и обнулить балансы?")) {
+                state = {
+                    cash: { balance: 0, history: [] },
+                    card: { balance: 0, history: [] }
+                };
+                localStorage.setItem('finance_state', JSON.stringify(state));
+                updateDisplay();
+                updateChart();
+                modal.classList.remove('active');
+            }
+        }
+
+        let touchStartY = 0;
+        const ptrIndicator = document.getElementById('ptrIndicator');
+        window.addEventListener('touchstart', e => { if (window.scrollY === 0) touchStartY = e.touches[0].clientY; }, { passive: true });
+        window.addEventListener('touchmove', e => {
+            if (!touchStartY) return;
+            const diff = e.touches[0].clientY - touchStartY;
+            if (diff > 0 && diff < 150 && window.scrollY === 0) ptrIndicator.style.top = `${diff / 2 - 30}px`;
+        }, { passive: true });
+        window.addEventListener('touchend', e => {
+            if (!touchStartY) return;
+            const diff = e.changedTouches[0].clientY - touchStartY;
+            if (diff > 80 && window.scrollY === 0) {
+                ptrIndicator.classList.add('loading'); ptrIndicator.style.top = '20px';
+                setTimeout(() => window.location.reload(), 600);
+            } else { ptrIndicator.style.top = '-50px'; }
+            touchStartY = 0;
+        }, { passive: true });
+
+        updateDisplay();
+        updateChart(); 
+    </script>
+</body>
+</html>
