@@ -1,6 +1,6 @@
 {
-  "name": "Finance",
-  "short_name": "Finance",
+  "name": "Финансы",
+  "short_name": "Финансы",
   "description": "Личный учет финансов",
   "lang": "ru",
   "start_url": "./index.html",
