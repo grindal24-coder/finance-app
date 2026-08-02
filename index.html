@@ -807,6 +807,13 @@
             border-color: var(--accent-color);
             color: #fff;
         }
+        .small-action-btn:disabled {
+            background: var(--quick-hover);
+            border-color: var(--border-color);
+            color: var(--secondary-text);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
         .empty-hint {
             color: var(--secondary-text);
             font-size: 14px;
@@ -1161,8 +1168,15 @@
             <button class="close-modal" onclick="closeCategoryEditModal()">
                 <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
-            <div class="modal-title">Изменить категорию</div>
+            <div class="modal-title">Изменить операцию</div>
+
+            <div class="field-label">Категория</div>
             <div class="category-grid" id="categoryEditGrid"></div>
+
+            <div class="field-label" style="margin-top:16px;">Заметка</div>
+            <input type="text" id="txEditNoteInput" class="input-box" placeholder="Например: телефон">
+
+            <button class="action-btn" onclick="saveTxEdit()">Сохранить</button>
         </div>
     </div>
 
@@ -1306,6 +1320,7 @@
                 p.nextDue = formatDateISO(addInterval(p.lastPaid, p.freq));
                 delete p.lastPaid;
             }
+            if (p.lastPaidDate === undefined) p.lastPaidDate = null;
         });
 
         let settings = JSON.parse(localStorage.getItem('finance_settings')) || { 
@@ -1722,13 +1737,14 @@
             }
         }
 
-        function changeTxCategory(txId, newCategory) {
+        function changeTxCategory(txId, newCategory, newNote) {
             triggerVibration();
             let found = false;
             ['cash', 'card'].forEach(accKey => {
                 const tx = state[accKey].history.find(item => item.id === txId);
                 if (tx) {
                     tx.category = newCategory;
+                    if (newNote !== undefined) tx.note = newNote;
                     found = true;
                 }
             });
@@ -1780,7 +1796,7 @@
                         <div class="tx-details">
                             <div style="display: flex; align-items: center; flex-wrap: wrap;">
                                 <p class="tx-title">${tx.category || 'Без категории'}</p>
-                                <button class="tx-edit-cat-btn" onclick="openCategoryEditModal('${tx.id}')" title="Изменить категорию">
+                                <button class="tx-edit-cat-btn" onclick="openCategoryEditModal('${tx.id}')" title="Изменить категорию и заметку">
                                     <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
                                 </button>
                             </div>
@@ -1800,12 +1816,14 @@
         }
 
         let pendingEditTxId = null;
+        let pendingEditCategory = null;
 
         function openCategoryEditModal(txId) {
             triggerVibration();
             let tx = state.cash.history.find(item => item.id === txId) || state.card.history.find(item => item.id === txId);
             if (!tx) return;
             pendingEditTxId = txId;
+            pendingEditCategory = tx.category;
 
             const grid = document.getElementById('categoryEditGrid');
             grid.innerHTML = '';
@@ -1814,16 +1832,21 @@
                 const btn = document.createElement('button');
                 btn.className = 'quick-btn';
                 btn.innerText = cat;
-                if (cat === tx.category) {
-                    btn.style.borderColor = 'var(--text-color)';
+                btn.dataset.cat = cat;
+                if (cat === pendingEditCategory) {
+                    btn.style.borderColor = 'var(--accent-color)';
                     btn.style.background = 'var(--quick-hover)';
                 }
                 btn.onclick = () => {
-                    changeTxCategory(pendingEditTxId, cat);
-                    closeCategoryEditModal();
+                    pendingEditCategory = cat;
+                    grid.querySelectorAll('.quick-btn').forEach(b => b.style.cssText = '');
+                    btn.style.borderColor = 'var(--accent-color)';
+                    btn.style.background = 'var(--quick-hover)';
                 };
                 grid.appendChild(btn);
             });
+
+            document.getElementById('txEditNoteInput').value = tx.note || '';
 
             document.getElementById('categoryEditModal').classList.add('active');
         }
@@ -1832,6 +1855,15 @@
             triggerVibration();
             document.getElementById('categoryEditModal').classList.remove('active');
             pendingEditTxId = null;
+            pendingEditCategory = null;
+        }
+
+        function saveTxEdit() {
+            triggerVibration();
+            if (!pendingEditTxId) return;
+            const note = document.getElementById('txEditNoteInput').value.trim();
+            changeTxCategory(pendingEditTxId, pendingEditCategory, note);
+            closeCategoryEditModal();
         }
 
         function setChartPeriod(period, btnElement) {
@@ -2164,18 +2196,23 @@
 
         let selectedPlanFreq = 'month';
         let editingPlanId = null;
+        let planDateManuallyEdited = false;
 
         function openPlanModal(planId) {
             triggerVibration();
             editingPlanId = planId || null;
             const plan = editingPlanId ? state.plans.find(p => p.id === editingPlanId) : null;
+            planDateManuallyEdited = false;
 
             document.getElementById('planModalTitle').innerText = plan ? 'Изменить план' : 'Новый план';
             document.getElementById('planSaveBtn').innerText = plan ? 'Сохранить изменения' : 'Добавить план';
             document.getElementById('planNameInput').value = plan ? plan.name : '';
             document.getElementById('planAmountInput').value = plan ? plan.amount : '';
-            document.getElementById('planDateInput').value = plan ? plan.nextDue : todayISO();
+            document.getElementById('planDateInput').value = plan ? plan.nextDue : formatDateISO(addInterval(todayISO(), 'month'));
             selectedPlanFreq = plan ? plan.freq : 'month';
+
+            const dateInput = document.getElementById('planDateInput');
+            dateInput.oninput = () => { planDateManuallyEdited = true; };
 
             const row = document.getElementById('planFreqRow');
             row.innerHTML = Object.entries(FREQ_LABELS).map(([key, label]) =>
@@ -2186,6 +2223,11 @@
                     selectedPlanFreq = btn.dataset.freq;
                     row.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
+                    // Если пользователь ещё не трогал дату вручную — подставляем
+                    // ближайшую дату по новой периодичности, считая от сегодня.
+                    if (!planDateManuallyEdited) {
+                        dateInput.value = formatDateISO(addInterval(todayISO(), selectedPlanFreq));
+                    }
                 };
             });
 
@@ -2219,7 +2261,8 @@
                     name: name,
                     amount: amount,
                     freq: selectedPlanFreq,
-                    nextDue: dateVal
+                    nextDue: dateVal,
+                    lastPaidDate: null
                 });
             }
 
@@ -2229,9 +2272,12 @@
         }
 
         function markPlanPaid(id) {
-            triggerVibration();
             const plan = state.plans.find(p => p.id === id);
             if (!plan) return;
+            if (daysBetween(new Date(), plan.nextDue) > 0) return; // ещё не наступил срок
+
+            triggerVibration();
+            plan.lastPaidDate = todayISO();
             // Двигаем дату от текущего срока платежа, а не от сегодняшнего дня,
             // чтобы день месяца (например, "6 число") оставался стабильным.
             plan.nextDue = formatDateISO(addInterval(plan.nextDue, plan.freq));
@@ -2260,6 +2306,7 @@
 
             list.innerHTML = sorted.map(plan => {
                 const daysLeft = daysBetween(new Date(), plan.nextDue);
+                const isDue = daysLeft <= 0;
 
                 let chipClass = 'chip-ok';
                 let chipText = `Осталось ${daysLeft} ${pluralDays(daysLeft)}`;
@@ -2272,6 +2319,10 @@
                 } else if (daysLeft <= 2) {
                     chipClass = 'chip-soon';
                 }
+
+                const lastPaidHtml = plan.lastPaidDate
+                    ? `<div class="item-card-sub">Последний раз оплачено: ${new Date(plan.lastPaidDate).toLocaleDateString('ru-RU')}</div>`
+                    : '';
 
                 return `
                     <div class="item-card">
@@ -2290,9 +2341,10 @@
                                 </button>
                             </div>
                         </div>
+                        ${lastPaidHtml}
                         <div class="item-card-footer-row">
                             <span class="item-status-chip ${chipClass}">${chipText}</span>
-                            <button class="small-action-btn primary" onclick="markPlanPaid('${plan.id}')">Оплачено</button>
+                            <button class="small-action-btn primary" onclick="markPlanPaid('${plan.id}')" ${isDue ? '' : 'disabled title="Ещё не наступил срок платежа"'}>Оплачено</button>
                         </div>
                     </div>
                 `;
@@ -2779,6 +2831,14 @@
         renderBudgetTab();
         renderAnalyticsTab();
         moveNavIndicator(document.querySelector('.nav-item.active'));
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js').catch((err) => {
+                    console.warn('Не удалось зарегистрировать service worker:', err);
+                });
+            });
+        }
     </script>
 </body>
 </html>
